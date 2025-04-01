@@ -23,7 +23,13 @@ fs.createReadStream('books.csv')
   })
   .on('end', () => {
     console.log('Books data loaded from CSV');
+
+    app.listen(port, () => {
+        console.log(`Catalog Service running on http://localhost:${port}`);
+      });
+      
   });
+  
 
 // API: /info/:id
 app.get('/info/:id', (req, res) => {
@@ -43,6 +49,23 @@ app.get('/info/:id', (req, res) => {
   }
 });
 
-app.listen(port, () => {
-  console.log(`Catalog Service running on http://localhost:${port}`);
-});
+
+// GET /search/:topic
+app.get('/search/:topic', (req, res) => {
+    const topic = req.params.topic.toLowerCase();
+  
+    const matchedBooks = books.filter(b => b.topic.toLowerCase() === topic);
+  
+    if (matchedBooks.length > 0) {
+      const result = matchedBooks.map(b => ({
+        id: b.id,
+        title: b.title
+      }));
+  
+      res.json(result);
+    } else {
+      res.status(404).json({ message: "No books found for this topic" });
+    }
+  });
+  
+
