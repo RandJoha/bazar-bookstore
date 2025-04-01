@@ -1,41 +1,29 @@
- 
 const express = require('express');
+const fs = require('fs');
+const csv = require('csv-parser');
+
 const app = express();
 const port = 3000;
 
 app.use(express.json());
 
 
-const books = [
-  {
-    id: 1,
-    title: "How to get a good grade in DOS in 40 minutes a day",
-    topic: "distributed systems",
-    price: 60,
-    quantity: 4
-  },
-  {
-    id: 2,
-    title: "RPCs for Noobs",
-    topic: "distributed systems",
-    price: 50,
-    quantity: 5
-  },
-  {
-    id: 3,
-    title: "Xen and the Art of Surviving Undergraduate School",
-    topic: "undergraduate school",
-    price: 40,
-    quantity: 3
-  },
-  {
-    id: 4,
-    title: "Cooking for the Impatient Undergrad",
-    topic: "undergraduate school",
-    price: 30,
-    quantity: 6
-  }
-];
+let books = [];
+
+fs.createReadStream('books.csv')
+  .pipe(csv())
+  .on('data', (row) => {
+    books.push({
+      id: parseInt(row.id),
+      title: row.title,
+      topic: row.topic,
+      price: parseFloat(row.price),
+      quantity: parseInt(row.quantity)
+    });
+  })
+  .on('end', () => {
+    console.log('Books data loaded from CSV');
+  });
 
 // API: /info/:id
 app.get('/info/:id', (req, res) => {
