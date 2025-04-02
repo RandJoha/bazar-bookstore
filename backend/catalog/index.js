@@ -5,6 +5,11 @@ const csv = require('csv-parser');
 const app = express();
 const port = 3000;
 
+const path = require('path');
+const csvWriter = require('csv-writer').createObjectCsvWriter;
+
+const booksFilePath = path.join(__dirname, 'books.csv');
+
 app.use(express.json());
 
 
@@ -33,8 +38,10 @@ fs.createReadStream('books.csv')
 
 // API: /info/:id
 app.get('/info/:id', (req, res) => {
+    console.log("Request received for ID:", req.params.id);
+
   const id = parseInt(req.params.id);
-  const book = books.find(b => b.id === id);
+  const book = books.find(b => parseInt(b.id) === id);
 
   if (book) {
     res.json({
@@ -69,3 +76,48 @@ app.get('/search/:topic', (req, res) => {
   });
   
 
+  app.put('/update/:id', (req, res) => {
+    const id = parseInt(req.params.id);
+    const updatedData = req.body;
+  
+    const book = books.find(b => parseInt(b.id) === id);
+  
+    if (!book) {
+      return res.status(404).json({ error: 'Book not found' });
+    }
+  
+    if (updatedData.price !== undefined) {
+      book.price = updatedData.price;
+    }
+  
+    if (updatedData.quantity !== undefined) {
+      book.quantity = updatedData.quantity;
+    }
+  
+    const writer = csvWriter({
+      path: booksFilePath,
+      header: [
+        { id: 'id', title: 'id' },
+        { id: 'title', title: 'title' },
+        { id: 'topic', title: 'topic' },
+        { id: 'quantity', title: 'quantity' },
+        { id: 'price', title: 'price' }
+      ]
+    });
+  
+    writer.writeRecords(books)
+      .then(() => {
+        res.json({
+          status: 'success',
+          updated: {
+            id: book.id,
+            price: book.price,
+            quantity: book.quantity
+          }
+        });
+      })
+      .catch(error => {
+        console.error("Error writing CSV:", error);
+        res.status(500).json({ error: "Failed to update CSV file" });
+      });
+  });
