@@ -1,0 +1,12 @@
+
+services:
+  catalog:
+    build: ./backend/catalog
+    ports:
+      - "3000:3000"
+  order:
+    build: ./backend/order
+    ports:
+      - "3001:3001"
+    depends_on:
+      - catalog
