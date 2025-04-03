@@ -1,12 +1,26 @@
-
 services:
   catalog:
     build: ./backend/catalog
+    volumes:
+      - ./backend/catalog:/app
     ports:
       - "3000:3000"
+
   order:
     build: ./backend/order
+    volumes:
+      - ./backend/order:/app
     ports:
       - "3001:3001"
     depends_on:
       - catalog
+
+  frontend:
+    build: ./frontend
+    volumes:
+      - ./frontend:/app
+    ports:
+      - "3002:3100"
+    depends_on:
+      - catalog
+      - order
