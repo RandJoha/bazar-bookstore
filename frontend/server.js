@@ -2,7 +2,7 @@ const express = require('express');
 const axios = require('axios');
 
 const app = express();
-const PORT = 3000;
+const PORT = 3100;
 
 const CATALOG_SERVER = 'http://catalog:3000';
 const ORDER_SERVER = 'http://order:3001';
@@ -34,6 +34,7 @@ app.post('/purchase/:id', async (req, res) => {
         res.json(response.data);
     } catch (error) {
         res.status(500).json({ error: 'Error processing purchase request' });
+       
     }
 });
 
