@@ -34,29 +34,12 @@
 ]
 
 
-## Update book (price / quantity)
-- Method: PUT 
-- Endpoint: /update/{id}
-Request Body:
-{
-  "price": 55,
-  "quantity": 7
-}
 
-Response:
-{
-  "status": "success",
-  "updated": {
-    "id": 2,
-    "price": 55,
-    "quantity": 7
-  }
-}
 
 
 ##  Order Service
 ##  Purchase a book
-- Method: PUT 
+- Method: POST
 - Endpoint: /purchase/{id}
 - Response:
 Response (success):
@@ -76,7 +59,7 @@ Response (failure):
 ##  Front-end Service (Client API)
 ##  Look up book by ID
 - Method: GET
-- Endpoint: /lookup/{id}
+- Endpoint: /info/{id}
 - Response:
 {
   "id": 1,
