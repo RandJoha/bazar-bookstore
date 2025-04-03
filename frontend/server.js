@@ -4,13 +4,13 @@ const axios = require('axios');
 const app = express();
 const PORT = 3000;
 
-const CATALOG_SERVER = 'http://localhost:4000';
-const ORDER_SERVER = 'http://localhost:5000';
+const CATALOG_SERVER = 'http://catalog:3000';
+const ORDER_SERVER = 'http://order:3001';
 
 // Search books by topic
 app.get('/search/:topic', async (req, res) => {
     try {
-        const response = await axios.get(`${CATALOG_SERVER}/query-by-subject/${req.params.topic}`);
+        const response = await axios.get(`${CATALOG_SERVER}/search/${req.params.topic}`);
         res.json(response.data);
     } catch (error) {
         res.status(500).json({ error: 'Error fetching data from catalog server' });
@@ -18,9 +18,9 @@ app.get('/search/:topic', async (req, res) => {
 });
 
 // Get book details by item number
-app.get('/info/:item_number', async (req, res) => {
+app.get('/info/:id', async (req, res) => {
     try {
-        const response = await axios.get(`${CATALOG_SERVER}/query-by-item/${req.params.item_number}`);
+        const response = await axios.get(`${CATALOG_SERVER}/info/${req.params.id}`);
         res.json(response.data);
     } catch (error) {
         res.status(500).json({ error: 'Error fetching item details' });
@@ -28,9 +28,9 @@ app.get('/info/:item_number', async (req, res) => {
 });
 
 // Purchase a book by item number
-app.post('/purchase/:item_number', async (req, res) => {
+app.post('/purchase/:id', async (req, res) => {
     try {
-        const response = await axios.post(`${ORDER_SERVER}/purchase/${req.params.item_number}`);
+        const response = await axios.post(`${ORDER_SERVER}/purchase/${req.params.id}`);
         res.json(response.data);
     } catch (error) {
         res.status(500).json({ error: 'Error processing purchase request' });
