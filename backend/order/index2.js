@@ -5,7 +5,7 @@ const port = 3001;
 
 app.use(express.json());
 
-app.put('/purchase/:id', async (req, res) => {
+app.post('/purchase/:id', async (req, res) => {
   const id = req.params.id;
  
 
