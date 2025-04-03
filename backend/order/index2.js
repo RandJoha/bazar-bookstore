@@ -10,14 +10,14 @@ app.put('/purchase/:id', async (req, res) => {
  
 
   try {
-    console.log("Trying to contact catalog with:", `http://localhost:3000/info/${id}`);
+    console.log("Trying to contact catalog with:", `http://catalog:3000/info/${id}`);
 
-    const catalogResponse = await axios.get(`http://localhost:3000/info/${id}`);
+    const catalogResponse = await axios.get(`http://catalog:3000/info/${id}`);
 
     const { quantity } = catalogResponse.data;
 
     if (quantity > 0) {
-      await axios.put(`http://localhost:3000/update/${id}`, {
+      await axios.put(`http://catalog:3000/update/${id}`, {
         quantity: quantity - 1
       });
 
