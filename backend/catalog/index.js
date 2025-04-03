@@ -38,12 +38,17 @@ fs.createReadStream('books.csv')
 
 // API: /info/:id
 app.get('/info/:id', (req, res) => {
-    console.log("Request received for ID:", req.params.id);
 
   const id = parseInt(req.params.id);
   const book = books.find(b => parseInt(b.id) === id);
 
   if (book) {
+    console.log(`✅ Info for book ID ${book.id}`);
+    console.log(`📘 Title: ${book.title}`);
+    console.log(`📚 Topic: ${book.topic}`);
+    console.log(`💵 Price: ${book.price}`);
+    console.log(`📦 Quantity: ${book.quantity}`);
+  
     res.json({
       id: book.id,
       title: book.title,
@@ -51,7 +56,9 @@ app.get('/info/:id', (req, res) => {
       quantity: book.quantity,
       price: book.price
     });
-  } else {
+  }
+   else {
+    console.log(`❌ Book with ID ${id} not found.`);
     res.status(404).json({ error: "Book not found" });
   }
 });
@@ -64,26 +71,37 @@ app.get('/search/:topic', (req, res) => {
     const matchedBooks = books.filter(b => b.topic.toLowerCase() === topic);
   
     if (matchedBooks.length > 0) {
+      console.log(`🔎 Search request for topic: "${topic}"`);
+      matchedBooks.forEach(book => {
+        console.log(`➡️ ID: ${book.id}, Title: ${book.title}`);
+      });
+    
       const result = matchedBooks.map(b => ({
         id: b.id,
         title: b.title
       }));
-  
+    
       res.json(result);
-    } else {
+    }
+     else {
+      console.log(`❌ "No books found for the ${title} topic`);
       res.status(404).json({ message: "No books found for this topic" });
     }
   });
   
 
   app.put('/update/:id', (req, res) => {
+    
+
     const id = parseInt(req.params.id);
     const updatedData = req.body;
-  
+    
+     console.log(`✅ Received update request for ID: ${id}`);
+     console.log(`📝 New data:`, updatedData);
     const book = books.find(b => parseInt(b.id) === id);
-  
+    
     if (!book) {
-      return res.status(404).json({ error: 'Book not found' });
+      return res.status(404).json({ error: 'Book not found to update' });
     }
   
     if (updatedData.price !== undefined) {

@@ -5,7 +5,7 @@ const port = 3001;
 
 app.use(express.json());
 
-app.put('/purchase/:id', async (req, res) => {
+app.post('/purchase/:id', async (req, res) => {
   const id = req.params.id;
  
 
@@ -17,6 +17,7 @@ app.put('/purchase/:id', async (req, res) => {
     const { quantity } = catalogResponse.data;
 
     if (quantity > 0) {
+      console.log(`✅ bought book: ${catalogResponse.data.title}`);
       await axios.put(`http://catalog:3000/update/${id}`, {
         quantity: quantity - 1
       });
@@ -27,6 +28,7 @@ app.put('/purchase/:id', async (req, res) => {
       });
     } 
     else {
+      console.log(`❌ Book "${catalogResponse.data.title}" is out of stock`);
       res.json({
         success: false,
         message: "Book is out of stock"
