@@ -1,8 +1,9 @@
 services:
+ 
   catalog1:
     build: ./backend/catalog
     volumes:
-      - ./backend/catalog:/app
+    - ./backend/catalog/replica1:/app
     ports:
       - "3000:3000"
     environment:
@@ -13,7 +14,7 @@ services:
   catalog2:
     build: ./backend/catalog
     volumes:
-      - ./backend/catalog:/app
+    - ./backend/catalog/replica2:/app
     ports:
       - "3010:3000"
     environment:
