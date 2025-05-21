@@ -1,19 +1,54 @@
 services:
-  catalog:
+  catalog1:
     build: ./backend/catalog
     volumes:
       - ./backend/catalog:/app
     ports:
       - "3000:3000"
+    environment:
+      - SERVICE_NAME=catalog1
+      - PORT=3000
+      - REPLICA_ID=1
 
-  order:
+  catalog2:
+    build: ./backend/catalog
+    volumes:
+      - ./backend/catalog:/app
+    ports:
+      - "3010:3000"
+    environment:
+      - SERVICE_NAME=catalog2
+      - PORT=3000
+      - REPLICA_ID=2
+
+  
+  order1:
     build: ./backend/order
     volumes:
       - ./backend/order:/app
     ports:
       - "3001:3001"
+    environment:
+      - SERVICE_NAME=order1
+      - PORT=3001
+      - REPLICA_ID=1
     depends_on:
-      - catalog
+      - catalog1
+      - catalog2
+
+  order2:
+    build: ./backend/order
+    volumes:
+      - ./backend/order:/app
+    ports:
+      - "3011:3001"
+    environment:
+      - SERVICE_NAME=order2
+      - PORT=3001 
+      - REPLICA_ID=2
+    depends_on:
+      - catalog1
+      - catalog2
 
   frontend:
     build: ./frontend
@@ -22,5 +57,10 @@ services:
     ports:
       - "3002:3100"
     depends_on:
-      - catalog
-      - order
+      - catalog1
+      - catalog2
+      - order1
+      - order2
+    environment:
+      - CATALOG_SERVICES=catalog1:3000,catalog2:3000
+      - ORDER_SERVICES=order1:3001,order2:3001
