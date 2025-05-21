@@ -1,9 +1,9 @@
 services:
  
   catalog1:
-    build: ./backend/catalog
+    build: ./backend/catalog/catalog1
     volumes:
-    - ./backend/catalog/replica1:/app
+    - ./backend/catalog/catalog1:/app
     ports:
       - "3000:3000"
     environment:
@@ -12,9 +12,9 @@ services:
       - REPLICA_ID=1
 
   catalog2:
-    build: ./backend/catalog
+    build: ./backend/catalog/catalog2
     volumes:
-    - ./backend/catalog/replica2:/app
+    - ./backend/catalog/catalog2:/app
     ports:
       - "3010:3000"
     environment:
@@ -24,9 +24,9 @@ services:
 
   
   order1:
-    build: ./backend/order
+    build: ./backend/order/order1
     volumes:
-      - ./backend/order:/app
+      - ./backend/order/order1:/app
     ports:
       - "3001:3001"
     environment:
@@ -38,9 +38,9 @@ services:
       - catalog2
 
   order2:
-    build: ./backend/order
+    build: ./backend/order/order2
     volumes:
-      - ./backend/order:/app
+      - ./backend/order/order2:/app
     ports:
       - "3011:3001"
     environment:
