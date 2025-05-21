@@ -50,6 +50,8 @@ services:
       - catalog1
       - catalog2
 
+
+
   frontend:
     build: ./frontend
     volumes:
