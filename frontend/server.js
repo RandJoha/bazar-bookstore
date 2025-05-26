@@ -46,7 +46,8 @@ app.get('/search/:topic', async (req, res) => {
     }
 
     try {
-        const response = await axios.get(`${CATALOG_SERVER}/search/${req.params.topic}`);
+        const response = await axios.get(`${getCatalogServer()}/search/${req.params.topic}`);
+
         setCache(cacheKey, response.data);
 
         const books = response.data;
@@ -72,7 +73,8 @@ app.get('/info/:id', async (req, res) => {
     }
 
     try {
-        const response = await axios.get(`${CATALOG_SERVER}/info/${req.params.id}`);
+        const response = await axios.get(`${getCatalogServer()}/info/${req.params.id}`);
+
         setCache(cacheKey, response.data);
 
         const b = response.data;
@@ -83,14 +85,17 @@ app.get('/info/:id', async (req, res) => {
     }
 });
 
+
+
 // Purchase a book by item number (no caching)
 app.post('/purchase/:id', async (req, res) => {
     try {
-        const response = await axios.post(`${ORDER_SERVER}/purchase/${req.params.id}`);
+        const response = await axios.post(`${getOrderServer()}/purchase/${req.params.id}`);
+
         console.log(`✅ Bought book with ID: ${req.params.id}`);
 
         // Optionally clear cache for this book since its quantity likely changed
-        delete cache[`info:${req.params.id}`];
+        // delete cache[`info:${req.params.id}`];
         res.json(response.data);
     } catch (error) {
         res.status(500).json({ error: 'Error processing purchase request' });
