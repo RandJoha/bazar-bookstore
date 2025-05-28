@@ -35,6 +35,16 @@ function setCache(key, data) {
     };
 }
 
+app.post('/invalidate', (req, res) => {
+    const id = req.body.id;
+    const key = `info:${id}`;
+    if (cache[key]) {
+        delete cache[key];
+        console.log(`🧹 Cache invalidated for book ID: ${id}`);
+    }
+    res.json({ status: 'ok', message: `Cache cleared for book ${id}` });
+});
+
 // Search books by topic (cached)
 app.get('/search/:topic', async (req, res) => {
     const cacheKey = `search:${req.params.topic}`;
@@ -47,7 +57,6 @@ app.get('/search/:topic', async (req, res) => {
 
     try {
         const response = await axios.get(`${getCatalogServer()}/search/${req.params.topic}`);
-
         setCache(cacheKey, response.data);
 
         const books = response.data;
@@ -74,7 +83,6 @@ app.get('/info/:id', async (req, res) => {
 
     try {
         const response = await axios.get(`${getCatalogServer()}/info/${req.params.id}`);
-
         setCache(cacheKey, response.data);
 
         const b = response.data;
@@ -101,6 +109,8 @@ app.post('/purchase/:id', async (req, res) => {
         res.status(500).json({ error: 'Error processing purchase request' });
     }
 });
+
+
 
 app.listen(PORT, () => {
     console.log(`Front-end server running on port ${PORT}`);

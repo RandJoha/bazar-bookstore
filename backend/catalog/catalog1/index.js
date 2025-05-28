@@ -7,6 +7,8 @@ const app = express();
 const port = process.env.PORT || 3000;
 const serviceName = process.env.SERVICE_NAME || 'catalog';
 const replicaId = process.env.REPLICA_ID || '1';
+//const sourceReplica = process.env.SERVICE_NAME || "unknown";
+const allReplicas = ['1', '2'];
 
 const path = require('path');
 const csvWriter = require('csv-writer').createObjectCsvWriter;
@@ -38,6 +40,14 @@ const syncWithOtherReplica = async (bookId, updatedData) => {
 };
 
 let books = [];
+let logicalClock = 0;
+let pendingReplies = 0;
+let deferredRequests = [];
+let isUpdating = false;
+let wantsToUpdate = false;
+let pendingUpdate = null;
+
+
 
 fs.createReadStream('books.csv')
   .pipe(csv())
@@ -48,7 +58,7 @@ fs.createReadStream('books.csv')
       topic: row.topic,
       price: parseFloat(row.price),
       quantity: parseInt(row.quantity),
-      source: row.source || '' 
+     // source: row.source || '' 
     });
   })
   .on('end', () => {
@@ -123,6 +133,14 @@ app.get('/search/:topic', (req, res) => {
     console.log(`📝 Sync data:`, updatedData);
     
     const book = books.find(b => parseInt(b.id) === id);
+
+    if (updatedData.clock <= logicalClock) {
+      console.log(`⏱️ Ignored sync for book ID ${id}: incoming clock ${updatedData.clock} <= local clock ${logicalClock}`);
+      return res.json({ status: 'ignored', reason: 'outdated update' });
+    }
+
+    logicalClock = updatedData.clock;
+    console.log(`⏱️ Logical clock updated to ${logicalClock} from incoming sync`);
     
     if (!book) {
       return res.status(404).json({ error: 'Book not found for sync' });
@@ -146,8 +164,8 @@ app.get('/search/:topic', (req, res) => {
         { id: 'title', title: 'title' },
         { id: 'topic', title: 'topic' },
         { id: 'quantity', title: 'quantity' },
-        { id: 'price', title: 'price' },
-        { id: 'source', title: 'source' } 
+        { id: 'price', title: 'price' }
+       // { id: 'source', title: 'source' } 
       ]
     });
   
@@ -169,61 +187,136 @@ app.get('/search/:topic', (req, res) => {
       });
   });
 
-  app.put('/update/:id', (req, res) => {
-    const id = parseInt(req.params.id);
-    const updatedData = req.body;
-    
-    console.log(`✅ Received update request for ID: ${id}`);
-    console.log(`📝 New data:`, updatedData);
-    const book = books.find(b => parseInt(b.id) === id);
-    
-    if (!book) {
-      return res.status(404).json({ error: 'Book not found to update' });
-    }
-  
-    if (updatedData.price !== undefined) {
-      book.price = updatedData.price;
-    }
-  
-    if (updatedData.quantity !== undefined) {
-      book.quantity = updatedData.quantity;
-    }
-    if (updatedData.source !== undefined) {
-  book.source = updatedData.source;
-}
-  
-    const writer = csvWriter({
-      path: booksFilePath,
-      header: [
-        { id: 'id', title: 'id' },
-        { id: 'title', title: 'title' },
-        { id: 'topic', title: 'topic' },
-        { id: 'quantity', title: 'quantity' },
-        { id: 'price', title: 'price' },
-        { id: 'source', title: 'source' }
-      ]
-    });
-  
-    writer.writeRecords(books)
-      .then(() => {
-        
-        syncWithOtherReplica(id, {
-          price: book.price,
-          quantity: book.quantity,
-          source: book.source
+  app.put('/update/:id', async (req, res) => {
+  const id = parseInt(req.params.id);
+  const updatedData = req.body;
+
+  logicalClock++;
+  wantsToUpdate = true;
+  console.log(`⏳ Wants to update book ${id} — Clock: ${logicalClock}`);
+
+  pendingUpdate = { id, updatedData };
+
+  pendingReplies = allReplicas.length - 1;
+
+  for (const replica of allReplicas) {
+    if (replica !== replicaId) {
+      try {
+        await axios.post(`http://catalog${replica}:3000/request-access`, {
+          from: replicaId,
+          clock: logicalClock,
+          bookId: id
         });
+      } catch (err) {
+        console.error(`❌ Failed to contact replica ${replica}: ${err.message}`);
+      }
+    }
+  }
+
+  res.json({ status: 'waiting', message: `Waiting for OKs from replicas for book ${id}` });
+});
+
+async function proceedToUpdate(bookId) {
+  isUpdating = true;
+
+  const { updatedData } = pendingUpdate;
+  const book = books.find(b => parseInt(b.id) === bookId);
+  if (!book) return;
+
   
-        res.json({
-          status: 'success',
-          updated: {
-            id: book.id,
-            price: book.price,
-            quantity: book.quantity
-          }
-        });
-      })
-      .catch(error => {
-        console.error("Error writing CSV:", error);
-        res.status(500).json({ error: "Failed to update CSV file" });
-      });
+  if (updatedData.price !== undefined) {
+    book.price = updatedData.price;
+  }
+  if (updatedData.quantity !== undefined) {
+    book.quantity = updatedData.quantity;
+  }
+
+  try {
+    await axios.post('http://frontend:3100/invalidate', { id: bookId });
+    console.log(`🧹 Sent invalidate for book ${bookId}`);
+  } catch (err) {
+    console.error(`⚠️ Failed to invalidate: ${err.message}`);
+  }
+
+  const writer = csvWriter({
+    path: booksFilePath,
+    header: [
+      { id: 'id', title: 'id' },
+      { id: 'title', title: 'title' },
+      { id: 'topic', title: 'topic' },
+      { id: 'quantity', title: 'quantity' },
+      { id: 'price', title: 'price' }
+    ]
   });
+
+  await writer.writeRecords(books);
+
+
+  for (const replica of allReplicas) {
+    if (replica !== replicaId) {
+      await axios.put(`http://catalog${replica}:3000/sync/${bookId}`, {
+        quantity: book.quantity,
+        price: book.price,
+        clock: logicalClock
+      });
+    }
+  }
+
+  isUpdating = false;
+  wantsToUpdate = false;
+  pendingUpdate = null;
+
+  for (const req of deferredRequests) {
+    await axios.post(`http://catalog${req.from}:3000/reply-access`, {
+      from: replicaId,
+      bookId: req.bookId
+    });
+  }
+
+  deferredRequests = [];
+  console.log(`✅ Update complete for book ${bookId}`);
+}
+
+
+
+
+  app.post('/request-access', (req, res) => {
+  const { from, clock, bookId } = req.body;
+
+  
+  logicalClock = Math.max(logicalClock, clock) + 1;
+
+  const shouldDefer =
+    isUpdating ||
+    (wantsToUpdate && (clock < logicalClock || (clock === logicalClock && from < replicaId)));
+
+  if (shouldDefer) {
+    deferredRequests.push({ from, bookId });
+    console.log(`⏳ Deferred access for replica ${from} on book ${bookId}`);
+  } else {
+    console.log(`✅ Granted access to replica ${from} for book ${bookId}`);
+    axios.post(`http://catalog${from}:3000/reply-access`, {
+      from: replicaId,
+      bookId
+    });
+  }
+
+  res.json({ status: 'ok' });
+});
+
+
+
+app.post('/reply-access', (req, res) => {
+  const { from, bookId } = req.body;
+
+  console.log(`📩 Received OK from replica ${from} for book ${bookId}`);
+
+  pendingReplies--;
+  if (pendingReplies === 0) {
+    console.log(`🔐 All OKs received. Safe to update book ${bookId}`);
+  
+    proceedToUpdate(bookId);
+  }
+
+  res.json({ status: 'ok' });
+});
