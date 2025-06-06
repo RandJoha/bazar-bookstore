@@ -46,7 +46,7 @@ let deferredRequests = [];
 let isUpdating = false;
 let wantsToUpdate = false;
 let pendingUpdate = null;
-
+let updateResponseRes = null;
 
 
 fs.createReadStream('books.csv')
@@ -57,7 +57,8 @@ fs.createReadStream('books.csv')
       title: row.title,
       topic: row.topic,
       price: parseFloat(row.price),
-      quantity: parseInt(row.quantity)
+      quantity: parseInt(row.quantity),
+      lastUpdatedClock: 0 
   //    source: row.source || '' 
     });
   })
@@ -126,80 +127,82 @@ app.get('/search/:topic', (req, res) => {
   
 
   app.put('/sync/:id', (req, res) => {
-    const id = parseInt(req.params.id);
-    const updatedData = req.body;
-    
-    console.log(`🔄 Received sync request for book ID ${id} from other replica`);
-    console.log(`📝 Sync data:`, updatedData);
-    
-    const book = books.find(b => parseInt(b.id) === id);
+  const id = parseInt(req.params.id);
+  const updatedData = req.body;
 
-    if (updatedData.clock <= logicalClock) {
-      console.log(`⏱️ Ignored sync for book ID ${id}: incoming clock ${updatedData.clock} <= local clock ${logicalClock}`);
-      return res.json({ status: 'ignored', reason: 'outdated update' });
-    }
+  console.log(`🔄 Received sync request for book ID ${id} from other replica`);
+  console.log(`📝 Sync data:`, updatedData);
 
-   logicalClock = updatedData.clock;
-   console.log(`⏱️ Logical clock updated to ${logicalClock} from incoming sync`);
-    
-    if (!book) {
-      return res.status(404).json({ error: 'Book not found for sync' });
-    }
-  
-    if (updatedData.price !== undefined) {
-      book.price = updatedData.price;
-    }
-  
-    if (updatedData.quantity !== undefined) {
-      book.quantity = updatedData.quantity;
-    }
-    
-    
-  
-   
-    const writer = csvWriter({
-      path: booksFilePath,
-      header: [
-        { id: 'id', title: 'id' },
-        { id: 'title', title: 'title' },
-        { id: 'topic', title: 'topic' },
-        { id: 'quantity', title: 'quantity' },
-        { id: 'price', title: 'price' }
-        //{ id: 'source', title: 'source' } 
-      ]
-    });
-  
-    writer.writeRecords(books)
-      .then(() => {
-        res.json({
-          status: 'success',
-          message: 'Book updated via sync',
-          updated: {
-            id: book.id,
-            price: book.price,
-            quantity: book.quantity
-          }
-        });
-      })
-      .catch(error => {
-        console.error("Error writing CSV during sync:", error);
-        res.status(500).json({ error: "Failed to update CSV file during sync" });
-      });
+  const book = books.find(b => parseInt(b.id) === id);
+
+  if (!book) {
+    console.log(`❌ Book with ID ${id} not found for sync`);
+    return res.status(404).json({ error: 'Book not found for sync' });
+  }
+
+  if (updatedData.clock <= book.lastUpdatedClock) {
+    console.log(`⏱️ Ignored sync for book ID ${id}: incoming clock ${updatedData.clock} <= last updated ${book.lastUpdatedClock}`);
+    return res.json({ status: 'ignored', reason: 'stale sync' });
+  }
+
+  logicalClock = Math.max(logicalClock, updatedData.clock);
+  console.log(`⏱️ Logical clock updated to ${logicalClock} from incoming sync`);
+
+  if (updatedData.price !== undefined) {
+    book.price = updatedData.price;
+  }
+
+  if (updatedData.quantity !== undefined) {
+    book.quantity = updatedData.quantity;
+  }
+
+  book.lastUpdatedClock = updatedData.clock;
+
+  const writer = csvWriter({
+    path: booksFilePath,
+    header: [
+      { id: 'id', title: 'id' },
+      { id: 'title', title: 'title' },
+      { id: 'topic', title: 'topic' },
+      { id: 'quantity', title: 'quantity' },
+      { id: 'price', title: 'price' }
+    ]
   });
+
+  writer.writeRecords(books)
+    .then(() => {
+      res.json({
+        status: 'success',
+        message: 'Book updated via sync',
+        updated: {
+          id: book.id,
+          price: book.price,
+          quantity: book.quantity
+        }
+      });
+    })
+    .catch(error => {
+      console.error("Error writing CSV during sync:", error);
+      res.status(500).json({ error: "Failed to update CSV file during sync" });
+    });
+});
 
 
   app.put('/update/:id', async (req, res) => {
   const id = parseInt(req.params.id);
   const updatedData = req.body;
 
-  logicalClock++;
+  //logicalClock++;
+  const incomingClock = req.body.clock || 0;
+logicalClock = Math.max(logicalClock, incomingClock) + 1;
+
+  
   wantsToUpdate = true;
   console.log(`⏳ Wants to update book ${id} — Clock: ${logicalClock}`);
 
   pendingUpdate = { id, updatedData }; 
-
   pendingReplies = allReplicas.length - 1;
-
+updateResponseRes = res
   for (const replica of allReplicas) {
     if (replica !== replicaId) {
       try {
@@ -213,7 +216,10 @@ app.get('/search/:topic', (req, res) => {
       }
     }
   }
-  res.json({ status: 'waiting', message: `Waiting for OKs from replicas for book ${id}` });
+
+  if (pendingReplies === 0) {
+    proceedToUpdate(id);
+  }
 });
 
 
@@ -222,15 +228,22 @@ async function proceedToUpdate(bookId) {
 
   const { updatedData } = pendingUpdate;
   const book = books.find(b => parseInt(b.id) === bookId);
-  if (!book) return;
-
-  if (updatedData.price !== undefined) {
-    book.price = updatedData.price;
-  }
-  if (updatedData.quantity !== undefined) {
-    book.quantity = updatedData.quantity;
+  if (!book) {
+    updateResponseRes?.status(404).json({ error: "Book not found" });
+    return;
   }
 
+  if (updatedData.delta !== undefined) {
+  book.quantity += updatedData.delta;
+} else if (updatedData.quantity !== undefined) {
+  book.quantity = updatedData.quantity;
+}
+
+if (updatedData.price !== undefined) {
+  book.price = updatedData.price;
+}
+
+book.lastUpdatedClock = logicalClock;
   try {
     await axios.post('http://frontend:3100/invalidate', { id: bookId });
     console.log(`🧹 Sent invalidate for book ${bookId}`);
@@ -238,20 +251,23 @@ async function proceedToUpdate(bookId) {
     console.error(`⚠️ Failed to invalidate: ${err.message}`);
   }
 
-  const writer = csvWriter({
-    path: booksFilePath,
-    header: [
-      { id: 'id', title: 'id' },
-      { id: 'title', title: 'title' },
-      { id: 'topic', title: 'topic' },
-      { id: 'quantity', title: 'quantity' },
-      { id: 'price', title: 'price' }
-    ]
-  });
+  
+  const writer = csvWriter({ path: booksFilePath,
+     header:  [
+    { id: 'id', title: 'id' },
+    { id: 'title', title: 'title' },
+    { id: 'topic', title: 'topic' },
+    { id: 'quantity', title: 'quantity' },
+    { id: 'price', title: 'price' },
+    { id: 'lastUpdatedClock', title: 'lastUpdatedClock' }
 
+  ] 
+});
   await writer.writeRecords(books);
 
-  for (const replica of allReplicas) {
+  
+  logicalClock++;              
+ for (const replica of allReplicas) {
     if (replica !== replicaId) {
       await axios.put(`http://catalog${replica}:3000/sync/${bookId}`, {
         quantity: book.quantity,
@@ -261,10 +277,7 @@ async function proceedToUpdate(bookId) {
     }
   }
 
-  isUpdating = false;
-  wantsToUpdate = false;
-  pendingUpdate = null;
-
+ 
   for (const req of deferredRequests) {
     await axios.post(`http://catalog${req.from}:3000/reply-access`, {
       from: replicaId,
@@ -272,10 +285,25 @@ async function proceedToUpdate(bookId) {
     });
   }
 
+  isUpdating = false;
+  wantsToUpdate = false;
+  pendingUpdate = null;
   deferredRequests = [];
-  console.log(`✅ Update complete for book ${bookId}`);
-}
 
+  console.log(`✅ Update complete for book ${bookId}`);
+
+  if (updateResponseRes) {
+    updateResponseRes.json({
+      message: "Update complete and cache cleared",
+      updated: {
+        id: book.id,
+        price: book.price,
+        quantity: book.quantity
+      }
+    });
+    updateResponseRes = null; 
+  }
+}
 
 
 
