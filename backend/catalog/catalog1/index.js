@@ -58,7 +58,7 @@ fs.createReadStream('books.csv')
       topic: row.topic,
       price: parseFloat(row.price),
       quantity: parseInt(row.quantity),
-      lastUpdatedClock: 0 
+    //  lastUpdatedClock: 0 
   //    source: row.source || '' 
     });
   })
@@ -140,10 +140,10 @@ app.get('/search/:topic', (req, res) => {
     return res.status(404).json({ error: 'Book not found for sync' });
   }
 
-  if (updatedData.clock <= book.lastUpdatedClock) {
-    console.log(`⏱️ Ignored sync for book ID ${id}: incoming clock ${updatedData.clock} <= last updated ${book.lastUpdatedClock}`);
-    return res.json({ status: 'ignored', reason: 'stale sync' });
-  }
+  //if (updatedData.clock <= book.lastUpdatedClock) {
+   // console.log(`⏱️ Ignored sync for book ID ${id}: incoming clock ${updatedData.clock} <= last updated ${book.lastUpdatedClock}`);
+  //  return res.json({ status: 'ignored', reason: 'stale sync' });
+  //}
 
   logicalClock = Math.max(logicalClock, updatedData.clock);
   console.log(`⏱️ Logical clock updated to ${logicalClock} from incoming sync`);
@@ -156,7 +156,7 @@ app.get('/search/:topic', (req, res) => {
     book.quantity = updatedData.quantity;
   }
 
-  book.lastUpdatedClock = updatedData.clock;
+ // book.lastUpdatedClock = updatedData.clock;
 
   const writer = csvWriter({
     path: booksFilePath,
@@ -166,7 +166,7 @@ app.get('/search/:topic', (req, res) => {
       { id: 'topic', title: 'topic' },
       { id: 'quantity', title: 'quantity' },
       { id: 'price', title: 'price' }
-      //{ id: 'lastUpdatedClock', title: 'lastUpdatedClock' }
+   // { id: 'lastUpdatedClock', title: 'lastUpdatedClock' }
     ]
   });
 
@@ -244,7 +244,7 @@ if (updatedData.price !== undefined) {
   book.price = updatedData.price;
 }
 
-book.lastUpdatedClock = logicalClock;
+//book.lastUpdatedClock = logicalClock;
   try {
     await axios.post('http://frontend:3100/invalidate', { id: bookId });
     console.log(`🧹 Sent invalidate for book ${bookId}`);
@@ -260,6 +260,7 @@ book.lastUpdatedClock = logicalClock;
     { id: 'topic', title: 'topic' },
     { id: 'quantity', title: 'quantity' },
     { id: 'price', title: 'price' }
+    //{ id: 'lastUpdatedClock', title: 'lastUpdatedClock' }
 
   ] 
 });
