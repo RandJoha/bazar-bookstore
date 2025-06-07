@@ -52,10 +52,9 @@ app.post('/request-access', (req, res) => {
   const { from, clock, bookId } = req.body;
 
   logicalClock = Math.max(logicalClock, clock) + 1;
-
-  const shouldDefer =
+  
+ const shouldDefer =
     isPurchasing ||
-
     (wantsToPurchase && (clock < logicalClock || (clock === logicalClock && parseInt(from) < parseInt(replicaId))));
 
   if (shouldDefer) {

@@ -53,9 +53,10 @@ app.post('/request-access', (req, res) => {
 
   logicalClock = Math.max(logicalClock, clock) + 1;
 
-  const shouldDefer =
+ const shouldDefer =
     isPurchasing ||
     (wantsToPurchase && (clock < logicalClock || (clock === logicalClock && parseInt(from) < parseInt(replicaId))));
+
 
   if (shouldDefer) {
     deferredRequests.push({ from, bookId });
